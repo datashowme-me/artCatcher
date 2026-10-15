@@ -5,6 +5,7 @@ import { PRIZES } from '../utils/artData';
 import { getMarqueeTexture } from '../utils/artTextures';
 import { sound } from '../utils/audio';
 import { createFigurine, FigurineInstance } from './figurineBuilder';
+import { SpatialAudioManager } from './spatialAudio';
 
 export interface ClawMachineCallbacks {
   onStateChange: (state: GameState) => void;
@@ -67,6 +68,7 @@ export class ClawMachineGame {
   private gantryFollowSpot!: THREE.SpotLight;
   private gantryFollowSpotTarget = new THREE.Object3D();
   private lockedPrize: PrizeMetadata | null = null;
+  private spatialAudio: SpatialAudioManager;
 
   // Figurines
   private figurines: FigurineInstance[] = [];
@@ -128,7 +130,10 @@ export class ClawMachineGame {
     // 7. Gantry Crane & Claw Assembly (with trolley carriage, laser beam, and surface reticle)
     this.buildClawAssembly();
 
-    // 8. Spawn Figurines (meticulously distributed across 5 clean rows + saddles, zero clipping)
+    // 8. 3D Spatial Audio System (binds HRTF audio to camera, moving claw, and prize chute exit)
+    this.spatialAudio = new SpatialAudioManager(this.camera, this.scene, this.clawGroup, this.gantryCarriage);
+
+    // 9. Spawn Figurines (meticulously distributed across 3-tier mountain heap)
     this.spawnFigurines();
 
     // 9. Event Listeners
@@ -570,50 +575,85 @@ export class ClawMachineGame {
   private spawnFigurines() {
     this.figurines = [];
 
-    // Realistic, clean multi-tier arcade prize pit distribution:
-    // 22 base figurines across 5 rows with 0.45-0.55m spacing (zero clipping),
-    // and 6 top figurines resting cleanly in the saddles between lower dolls!
+    // High-Density 3-Tier Mountain Heap Arcade Prize Pit (50 Dolls):
+    // Tier 1: 30 base dolls in a staggered hexagonal dense lattice across the floor (Y = 0.0)
+    // Tier 2: 14 mid dolls settled in the natural saddles/valleys of the base layer (Y = 0.42 - 0.48)
+    // Tier 3: 6 summit dolls crowning the peak of the mountain heap (Y = 0.78 - 0.84)
     // Chute zone (X < -0.55 && Z > 0.45) is kept completely clear.
     const spawnPositions: { x: number; y: number; z: number; r: number }[] = [
-      // Row 1: Back row (Z = -0.85) - 5 dolls
-      { x: -0.95, y: 0.0, z: -0.85, r: 0.2 },
-      { x: -0.48, y: 0.0, z: -0.85, r: -0.3 },
-      { x: 0.0,   y: 0.0, z: -0.85, r: 0.4 },
-      { x: 0.48,  y: 0.0, z: -0.85, r: -0.2 },
-      { x: 0.95,  y: 0.0, z: -0.85, r: 0.3 },
+      // === TIER 1: BASE FLOOR LAYER (Y = 0.0) - 30 Dolls ===
+      // Row 1: Back row (Z = -0.85) - 6 dolls
+      { x: -1.02, y: 0.0, z: -0.85, r: 0.20 },
+      { x: -0.62, y: 0.0, z: -0.85, r: -0.30 },
+      { x: -0.21, y: 0.0, z: -0.85, r: 0.40 },
+      { x: 0.20,  y: 0.0, z: -0.85, r: -0.20 },
+      { x: 0.61,  y: 0.0, z: -0.85, r: 0.30 },
+      { x: 1.02,  y: 0.0, z: -0.85, r: -0.40 },
 
-      // Row 2: Mid-back row (Z = -0.45) - 5 dolls
-      { x: -0.92, y: 0.0, z: -0.45, r: 0.5 },
-      { x: -0.45, y: 0.0, z: -0.45, r: -0.4 },
-      { x: 0.02,  y: 0.0, z: -0.45, r: 0.2 },
-      { x: 0.46,  y: 0.0, z: -0.45, r: -0.5 },
-      { x: 0.92,  y: 0.0, z: -0.45, r: 0.1 },
+      // Row 2: Mid-back row (Z = -0.56) - 5 dolls
+      { x: -0.82, y: 0.0, z: -0.56, r: 0.50 },
+      { x: -0.41, y: 0.0, z: -0.56, r: -0.40 },
+      { x: 0.00,  y: 0.0, z: -0.56, r: 0.20 },
+      { x: 0.41,  y: 0.0, z: -0.56, r: -0.50 },
+      { x: 0.82,  y: 0.0, z: -0.56, r: 0.10 },
 
-      // Row 3: Mid-front row (Z = -0.05) - 5 dolls
-      { x: -0.9,  y: 0.0, z: -0.05, r: -0.3 },
-      { x: -0.44, y: 0.0, z: -0.05, r: 0.4 },
-      { x: 0.0,   y: 0.0, z: -0.05, r: -0.2 },
-      { x: 0.45,  y: 0.0, z: -0.05, r: 0.5 },
-      { x: 0.9,   y: 0.0, z: -0.05, r: -0.4 },
+      // Row 3: Center row (Z = -0.27) - 6 dolls
+      { x: -1.01, y: 0.0, z: -0.27, r: -0.30 },
+      { x: -0.61, y: 0.0, z: -0.27, r: 0.40 },
+      { x: -0.20, y: 0.0, z: -0.27, r: -0.20 },
+      { x: 0.20,  y: 0.0, z: -0.27, r: 0.50 },
+      { x: 0.61,  y: 0.0, z: -0.27, r: -0.40 },
+      { x: 1.01,  y: 0.0, z: -0.27, r: 0.30 },
 
-      // Row 4: Front-center/right row (Z = +0.35) - 4 dolls (clear of left chute at X < -0.55!)
-      { x: -0.35, y: 0.0, z: 0.35, r: 0.3 },
-      { x: 0.1,   y: 0.0, z: 0.35, r: -0.4 },
-      { x: 0.52,  y: 0.0, z: 0.35, r: 0.2 },
-      { x: 0.92,  y: 0.0, z: 0.35, r: -0.3 },
+      // Row 4: Mid-front row (Z = 0.02) - 5 dolls
+      { x: -0.80, y: 0.0, z: 0.02,  r: 0.30 },
+      { x: -0.40, y: 0.0, z: 0.02,  r: -0.30 },
+      { x: 0.01,  y: 0.0, z: 0.02,  r: 0.40 },
+      { x: 0.41,  y: 0.0, z: 0.02,  r: -0.20 },
+      { x: 0.82,  y: 0.0, z: 0.02,  r: 0.40 },
 
-      // Row 5: Front-most right row (Z = +0.70) - 3 dolls (clear of left chute!)
-      { x: 0.05,  y: 0.0, z: 0.70, r: 0.4 },
-      { x: 0.5,   y: 0.0, z: 0.70, r: -0.2 },
-      { x: 0.92,  y: 0.0, z: 0.70, r: 0.3 },
+      // Row 5: Front-center/right row (Z = 0.32) - 4 dolls (clear of chute)
+      { x: -0.40, y: 0.0, z: 0.32,  r: 0.20 },
+      { x: 0.02,  y: 0.0, z: 0.32,  r: -0.40 },
+      { x: 0.44,  y: 0.0, z: 0.32,  r: 0.30 },
+      { x: 0.86,  y: 0.0, z: 0.32,  r: -0.30 },
 
-      // Top Saddle Tier: Resting naturally in the hollows between lower dolls (Y = 0.50 - 0.54)
-      { x: -0.68, y: 0.52, z: -0.65, r: 0.25 },
-      { x: 0.24,  y: 0.50, z: -0.65, r: -0.35 },
-      { x: -0.22, y: 0.54, z: -0.25, r: 0.4 },
-      { x: 0.68,  y: 0.52, z: -0.25, r: -0.3 },
-      { x: 0.28,  y: 0.50, z: 0.15,  r: 0.3 },
-      { x: 0.70,  y: 0.50, z: 0.52,  r: -0.25 },
+      // Row 6: Front-right row (Z = 0.62) - 3 dolls (clear of chute)
+      { x: 0.05,  y: 0.0, z: 0.62,  r: 0.40 },
+      { x: 0.48,  y: 0.0, z: 0.62,  r: -0.20 },
+      { x: 0.90,  y: 0.0, z: 0.62,  r: 0.30 },
+
+      // Row 7: Front-most right corner (Z = 0.92) - 1 doll
+      { x: 0.65,  y: 0.0, z: 0.92,  r: -0.30 },
+
+      // === TIER 2: MID-MOUNTAIN TIER (Y = 0.42 - 0.48) - 14 Dolls ===
+      // Resting naturally in the saddle depressions between lower dolls
+      { x: -0.82, y: 0.43, z: -0.71, r: 0.30 },
+      { x: -0.41, y: 0.45, z: -0.71, r: -0.40 },
+      { x: 0.00,  y: 0.44, z: -0.71, r: 0.20 },
+      { x: 0.41,  y: 0.45, z: -0.71, r: -0.30 },
+      { x: 0.82,  y: 0.43, z: -0.71, r: 0.40 },
+
+      { x: -0.61, y: 0.45, z: -0.42, r: 0.50 },
+      { x: -0.20, y: 0.46, z: -0.42, r: -0.20 },
+      { x: 0.21,  y: 0.47, z: -0.42, r: 0.40 },
+      { x: 0.62,  y: 0.45, z: -0.42, r: -0.50 },
+
+      { x: -0.40, y: 0.46, z: -0.13, r: 0.20 },
+      { x: 0.01,  y: 0.48, z: -0.13, r: -0.40 },
+      { x: 0.42,  y: 0.46, z: -0.13, r: 0.30 },
+
+      { x: 0.02,  y: 0.45, z: 0.18,  r: 0.40 },
+      { x: 0.45,  y: 0.43, z: 0.18,  r: -0.30 },
+
+      // === TIER 3: SUMMIT PEAK TIER (Y = 0.78 - 0.84) - 6 Dolls ===
+      // Crowning peak of the heap, prominent under the overhead spotlights
+      { x: -0.41, y: 0.80, z: -0.56, r: 0.35 },
+      { x: 0.00,  y: 0.84, z: -0.56, r: -0.25 },
+      { x: 0.41,  y: 0.80, z: -0.56, r: 0.40 },
+      { x: -0.20, y: 0.82, z: -0.28, r: -0.35 },
+      { x: 0.21,  y: 0.83, z: -0.28, r: 0.25 },
+      { x: 0.01,  y: 0.79, z: 0.02,  r: -0.40 },
     ];
 
     spawnPositions.forEach((posData, idx) => {
@@ -657,6 +697,7 @@ export class ClawMachineGame {
     this.state = 'DROPPING';
     this.callbacks.onStateChange(this.state);
     sound.playDrop();
+    this.spatialAudio.playClawDrop();
     return true;
   }
 
@@ -767,6 +808,7 @@ export class ClawMachineGame {
         this.state = 'GRABBING';
         this.callbacks.onStateChange(this.state);
         sound.playClamp();
+        this.spatialAudio.playClawGrab();
       }
     }
 
@@ -779,6 +821,7 @@ export class ClawMachineGame {
         this.state = 'ASCENDING';
         this.callbacks.onStateChange(this.state);
         sound.playMotorAscend();
+        this.spatialAudio.playClawAscend();
       }
     }
 
@@ -801,6 +844,7 @@ export class ClawMachineGame {
           this.grippedFigurine.isGripped = false;
           this.grippedFigurine = null;
           sound.playMiss();
+          this.spatialAudio.playClawSlip();
         }
       }
 
@@ -831,6 +875,7 @@ export class ClawMachineGame {
         this.state = 'RELEASING';
         this.callbacks.onStateChange(this.state);
         sound.playRelease();
+        this.spatialAudio.playClawRelease();
       }
     }
 
@@ -852,6 +897,7 @@ export class ClawMachineGame {
           this.callbacks.onStateChange(this.state);
           this.callbacks.onPrizeWon(wonPrize.metadata);
           sound.playWin();
+          this.spatialAudio.playPrizeWonAndChuteDrop();
 
           // After short celebration drop animation, return to IDLE so the player can continue playing immediately!
           setTimeout(() => {
@@ -902,9 +948,16 @@ export class ClawMachineGame {
       const dx = this.gantryPos.x - fig.position.x;
       const dz = this.gantryPos.z - fig.position.z;
       const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestFig = fig;
+      if (dist < 0.42) {
+        // Prioritize higher-elevation dolls if multiple dolls are within aiming radius
+        if (
+          !closestFig ||
+          fig.position.y > closestFig.position.y + 0.15 ||
+          (Math.abs(fig.position.y - closestFig.position.y) <= 0.15 && dist < closestDist)
+        ) {
+          closestDist = dist;
+          closestFig = fig;
+        }
       }
     }
 
@@ -991,11 +1044,20 @@ export class ClawMachineGame {
       const dx = this.gantryPos.x - fig.position.x;
       const dz = this.gantryPos.z - fig.position.z;
       const distXZ = Math.sqrt(dx * dx + dz * dz);
-      const dy = Math.abs(this.clawY - 0.25 - fig.position.y);
+
+      // The doll's body center is around fig.position.y + 0.28m,
+      // and the closed claw fingers grip at this.clawY - 0.35m.
+      const dollCenterY = fig.position.y + 0.28;
+      const clawCenterY = this.clawY - 0.35;
+      const dy = Math.abs(clawCenterY - dollCenterY);
       const dist3D = Math.sqrt(dx * dx + dy * dy * 0.7 + dz * dz);
 
-      if (distXZ < 0.44 && dist3D < minDistance) {
-        minDistance = dist3D;
+      // Higher-tier dolls (Y > 0.4) on the surface of the heap are naturally more accessible to claw fingers
+      const heightBonus = (fig.position.y / 0.84) * 0.05;
+      const effectiveDist = dist3D - heightBonus;
+
+      if (distXZ < 0.44 && effectiveDist < minDistance) {
+        minDistance = effectiveDist;
         bestCandidate = fig;
       }
     }
@@ -1030,16 +1092,10 @@ export class ClawMachineGame {
 
   private respawnFigurine(fig: FigurineInstance) {
     fig.isWon = false;
-    const rx = (Math.random() - 0.5) * 1.6 + 0.1;
-    const rz = (Math.random() - 0.5) * 1.2 - 0.1;
-    // Don't respawn directly over the drop chute
-    const safeX = (rx < -0.55 && rz > 0.45) ? 0.25 : rx;
-    const safeY = Math.random() < 0.35 ? 0.48 : 0.0;
-
-    fig.initialPos.set(safeX, safeY, rz);
+    // Seamlessly restore figurine back to its clean 3-tier mountain position
     fig.position.copy(fig.initialPos);
     fig.mesh.position.copy(fig.position);
-    fig.mesh.rotation.y = Math.random() * Math.PI * 2;
+    fig.mesh.rotation.copy(fig.rotation);
     fig.mesh.visible = true;
   }
 
@@ -1135,6 +1191,7 @@ export class ClawMachineGame {
       cancelAnimationFrame(this.animFrameId);
     }
     window.removeEventListener('resize', this.onResize);
+    this.spatialAudio.destroy();
     this.controls.dispose();
     this.renderer.dispose();
     if (this.container.contains(this.renderer.domElement)) {
